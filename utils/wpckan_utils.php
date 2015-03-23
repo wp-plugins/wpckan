@@ -1,8 +1,7 @@
 <?php
 
   define("FREQ_NEVER","0");
-  define("FREQ_POST_PUBLISHED","1");
-  define("FREQ_POST_SAVED","2");
+  define("FREQ_POST_SAVED","1");
   define("FILTER_ALL","0");
   define("FILTER_ONLY_WITH_RESOURCES","1");
   define("DEFAULT_LOG","/tmp/wpckan.log");
@@ -67,7 +66,7 @@
 
     $related_datasets_json = get_post_meta( $atts['post_id'], 'wpckan_related_datasets', true );
     $related_datasets = array();
-    if (!IsNullOrEmptyString($related_datasets_json))
+    if (!wpckan_is_null_or_empty_string($related_datasets_json))
       $related_datasets = json_decode($related_datasets_json,true);
 
     $limit = 0;
@@ -85,6 +84,11 @@
       $filter = $atts["filter"];
     }
 
+    $filter_fields_json = NULL;
+    if (array_key_exists("filter_fields",$atts)){
+      $filter_fields_json = json_decode($atts["filter_fields"],true);
+    }
+
     $count = 0;
     $dataset_array = array();
     $atts["related_datasets"] = $related_datasets;
@@ -93,7 +97,9 @@
         $dataset_atts = array("id" => $dataset["dataset_id"]);
         try{
           if ($filter == FILTER_ALL || (($filter == FILTER_ONLY_WITH_RESOURCES) && wpckan_dataset_has_resources($dataset))){
-           array_push($dataset_array,wpckan_api_get_dataset($dataset_atts));
+           if (wpckan_is_null($filter_fields_json) || (!wpckan_is_null($filter_fields_json) && wpckan_dataset_has_matching_extras($dataset,$filter_fields_json))){
+            array_push($dataset_array,wpckan_api_get_dataset($dataset_atts));
+           }
           }
         }catch(Exception $e){
           wpckan_log($e->getMessage());
@@ -110,7 +116,7 @@
 
     $related_datasets_json = get_post_meta( $atts['post_id'], 'wpckan_related_datasets', true );
     $related_datasets = array();
-    if (!IsNullOrEmptyString($related_datasets_json))
+    if (!wpckan_is_null_or_empty_string($related_datasets_json))
     $related_datasets = json_decode($related_datasets_json,true);
 
     if (array_key_exists("group",$atts))
@@ -122,6 +128,11 @@
     $filter = FILTER_ALL;
     if (array_key_exists("filter",$atts)){
       $filter = $atts["filter"];
+    }
+
+    $filter_fields_json = NULL;
+    if (array_key_exists("filter_fields",$atts)){
+      $filter_fields_json = json_decode($atts["filter_fields"],true);
     }
 
     $dataset_array = array();
@@ -162,7 +173,9 @@
         $dataset_atts = array("id" => $dataset["dataset_id"]);
         try{
          if ($filter == FILTER_ALL || (($filter == FILTER_ONLY_WITH_RESOURCES) && wpckan_dataset_has_resources($dataset))){
-          array_push($dataset_array,wpckan_api_get_dataset($dataset_atts));
+          if (wpckan_is_null($filter_fields_json) || (!wpckan_is_null($filter_fields_json) && wpckan_dataset_has_matching_extras($dataset,$filter_fields_json))){
+           array_push($dataset_array,wpckan_api_get_dataset($dataset_atts));
+          }
          }
         }catch(Exception $e){
           wpckan_log($e->getMessage());
@@ -190,10 +203,17 @@
       $filter = $atts["filter"];
     }
 
+    $filter_fields_json = NULL;
+    if (array_key_exists("filter_fields",$atts)){
+      $filter_fields_json = json_decode($atts["filter_fields"],true);
+    }
+
     $filtered_dataset_array = array();
     foreach ($dataset_array as $dataset){
      if ($filter == FILTER_ALL || (($filter == FILTER_ONLY_WITH_RESOURCES) && wpckan_dataset_has_resources($dataset))){
-      array_push($filtered_dataset_array,wpckan_api_get_dataset($dataset));
+      if (wpckan_is_null($filter_fields_json) || (!wpckan_is_null($filter_fields_json) && wpckan_dataset_has_matching_extras($dataset,$filter_fields_json))){
+       array_push($filtered_dataset_array,wpckan_api_get_dataset($dataset));
+      }
      }
     }
 
@@ -230,12 +250,16 @@
 
   function wpckan_log($text) {
     if (!get_option('setting_log_enabled')) return;
-    if (!IsNullOrEmptyString(get_option('setting_log_path')))
+
+    $bt = debug_backtrace();
+    $caller = array_shift($bt);
+
+    if (!wpckan_is_null_or_empty_string(get_option('setting_log_path')))
       Analog::handler(Handler\File::init (get_option('setting_log_path')));
     else
       Analog::handler(Handler\File::init (DEFAULT_LOG));
 
-    Analog::log ($text);
+    Analog::log ( "[ " . $caller['file'] . " | " . $caller['line'] . " ] " . $text );
   }
 
   /*
@@ -258,8 +282,31 @@
     return false;
   }
 
+  function wpckan_dataset_has_matching_extras($dataset,$filter_fields_json){
+    wpckan_log("wpckan_dataset_has_matching_extras " . print_r($dataset,true) . print_r($filter_fields_json,true));
+
+    if (array_key_exists("dataset_extras",$dataset)){
+     $extras = json_decode($dataset["dataset_extras"], true);
+    }else if (array_key_exists("extras",$dataset)){
+     $extras = $dataset["extras"];
+    }else{
+     return false;
+    }
+
+    foreach ($extras as $extra){
+     $field_value = $filter_fields_json[$extra['key']];
+     if (!wpckan_is_null_or_empty_string($field_value) && strpos(strtolower($extra['value']),strtolower($field_value)) !== false){
+      return true;
+     }
+
+    }
+
+   return false;
+  }
+
   function wpckan_cleanup_text_for_archiving($post_content){
     $post_content = wpckan_detect_and_remove_shortcodes_in_text($post_content);
+    $post_content = wpckan_strip_mqtranslate_tags($post_content);
     return $post_content;
   }
 
@@ -344,24 +391,18 @@
   }
 
   function wpckan_validate_settings_write(){
-    return !IsNullOrEmptyString(get_option('setting_ckan_api'));
+    return !wpckan_is_null_or_empty_string(get_option('setting_ckan_api'));
   }
 
   function wpckan_get_ckan_settings(){
 
-      $settings = array(
-        'baseUrl' => get_option('setting_ckan_url') . "/api/",
-        'scheme' => 'http',
-        'apiKey' => get_option('setting_ckan_api')
-      );
+    $settings = array(
+      'baseUrl' => get_option('setting_ckan_url') . "/api/",
+      'scheme' => 'http',
+      'apiKey' => get_option('setting_ckan_api')
+    );
 
-      return $settings;
-    }
-
-  function wpckan_post_should_be_archived_on_publish($post_ID){
-    $archive_freq = get_post_meta( $post_ID, 'wpckan_archive_post_freq', true);
-    wpckan_log("wpckan_post_should_be_archived_on_publish freq: " . $archive_freq);
-    return ( $archive_freq == FREQ_POST_PUBLISHED);
+    return $settings;
   }
 
   function wpckan_post_should_be_archived_on_save($post_ID){
@@ -378,6 +419,12 @@
     return $clean_url;
   }
 
+  function wpckan_strip_mqtranslate_tags($input) {
+    $clean_url = str_replace("<!--:-->", " ", $input);
+    $clean_url = strip_tags($clean_url);
+    return $clean_url;
+  }
+
   function wpckan_pagination_last($count,$limit,$page) {
     wpckan_log("wpckan_pagination_last");
     return (($count >= ($limit * ($page -1 ))) && ($count <= ($limit * $page)));
@@ -388,8 +435,31 @@
     return ($page == 1);
   }
 
-  function IsNullOrEmptyString($question){
+  function wpckan_is_null_or_empty_string($question){
     return (!isset($question) || trim($question)==='');
+  }
+
+  function wpckan_is_null($question){
+    return !isset($question);
+  }
+
+  function wpckan_is_valid_url($url){
+    if (filter_var($url, FILTER_VALIDATE_URL) != false){
+     return true;
+    }
+    return false;
+  }
+
+  function wpckan_get_url_extension($url){
+    $path = parse_url($url, PHP_URL_PATH);
+    return pathinfo($path, PATHINFO_EXTENSION);
+  }
+
+  function wpckan_get_url_extension_or_html($url){
+    $ext = wpckan_get_url_extension($url);
+    if ($ext)
+     return $ext;
+    return 'html';
   }
 
 
