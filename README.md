@@ -17,6 +17,14 @@ allows the user to add related CKAN datasets. Suggestions for related datasets a
 In order to use this information, this plugin exposes the **[wpckan_related_datasets]** shortcode for embedding information about related datasets on the content of the post.
 The shortcode has following parameters:
 
+* **group**:  (Optional)
+Specify the name (Not title) of a group available on the target CKAN instance in order to filter the related datasets to ONLY those assigned to it.
+
+* **organization**:  (Optional)
+Specify the name (Not title) of an organization available on the target CKAN instance in order to filter the related datasets to ONLY those assigned to it.
+
+Note: If both **group** and **organization** parameters are specified then the dataset has to be asssigned to both in order to be returned by the shortcode.
+
 * **include_fields_dataset**:  (Optional) Comma-separated string.
 Per default, this shortcode shows only title and notes of the CKAN dataset (See http://demo.ckan.org/api/3/action/package_search?q=spending). A list of attributes can be specified to present more information. Possible values: "title", "notes", "url", "license", "license_url" "metadata_created", "metadata_modified", "author" , "author_email"
 
@@ -30,7 +38,6 @@ Limits the amount of datasets shown by the shortcode string.
 Filters the datasets according to following criteria:
   * '0' (ALL): Return all datasets (Default)
   * '1' (ONLY WITH RESOURCES): Return only datasets featuring at least one resource.
-
 
 * **filter_fields**: (Optional) JSON.
 Filters the datasets according to the content of the datasets' extra fields. The list of fields and values is specified as JSON string. The name of the fields must match exactly (case unsensitive) but for the value the php strpos() function will be employed. The OR operator will be applied if more than 1 key/value combination are given. See examples below.
@@ -53,6 +60,11 @@ If provided, and as long **limit** and **page** are also given parameters, shows
 * **next_page_title**: (Optional) String.
 Replaces "Next" (Standard text) with the specified text.
 
+## Advanced
+
+* **blank_on_empty**: (Optional) Boolean.
+Returns an empty string "" if no datasets have been found to return
+
 Examples:
 ```php
 [wpckan_related_datasets]
@@ -62,6 +74,7 @@ Examples:
 [wpckan_related_datasets include_fields_dataset="title,description,author"]
 [wpckan_related_datasets include_fields_dataset="title,description,author" include_fields_resources="name,description,created"]
 [wpckan_related_datasets limit="3" filter_fields='{"spatial-text":"England","date":"2015"}']
+[wpckan_related_datasets blank_on_empty='true']
 ```
 
 An example showing how the information returned by this shortcode will be structured:
@@ -131,6 +144,11 @@ Prepends a string before the number.
 * **suffix**:  (Optional)
 Appends a string after the number.
 
+## Advanced
+
+* **blank_on_empty**: (Optional) Boolean.
+Returns an empty string "" if no datasets have been found to return
+
 Examples:
 ```php
 [wpckan_number_of_related_datasets]
@@ -140,6 +158,7 @@ Examples:
 [wpckan_number_of_related_datasets group="news" suffix=" datasets found in the news."]
 [wpckan_number_of_related_datasets group="news" prefix="Number of datasets: (" suffix=")" link_url="http://link_to_more"]
 [wpckan_number_of_related_datasets limit="3" filter_fields='{"spatial-text":"England","date":"2015"}']
+[wpckan_number_of_related_datasets blank_on_empty="true"]
 ```
 An example (corresponding to the last example above) showing how the information returned by this shortcode will be structured:
 
@@ -201,6 +220,11 @@ If provided, and as long **limit** and **page** are also given parameters, shows
 * **next_page_title**: (Optional) String.
 Replaces "Next" (Standard text) with the specified text.
 
+## Advanced
+
+* **blank_on_empty**: (Optional) Boolean.
+Returns an empty string "" if no datasets have been found to return
+
 Examples:
 ```php
 [wpckan_query_datasets query="coal"]
@@ -210,6 +234,7 @@ Examples:
 [wpckan_query_datasets query="forestry" organization="odmcambodia" group="news"]
 [wpckan_query_datasets query="elections" include_fields_dataset="title,notes,license" include_fields_resources="name,description,created"]
 [wpckan_query_datasets limit="3" filter_fields='{"spatial-text":"England","date":"2015"}']
+[wpckan_query_datasets query="coal" blank_on_empty='true']
 ```
 
 ```html
@@ -252,6 +277,15 @@ The plugin presents a metabox while users are editing posts. It allows users to 
 This feature archives the custom fields along with the title and description. If a valid URL is found in the value of the custom fields, a new resource will be added to the dataset.
 
 **WARNING** However, custom fields beginning with **_** or **wpckan_** will not be stored.
+
+## CORS Support disabled for CKAN >2.3
+
+Taken from http://docs.ckan.org/en/latest/changelog.html#id1:
+
+> Cross-Origin Resource Sharing (CORS) support is no longer enabled by default. Previously, Access-Control-Allow-* response headers were added for all requests, with Access-Control-Allow-Origin set to the wildcard value *.
+> To re-enable CORS, use the new ckan.cors configuration settings (ckan.cors.origin_allow_all and ckan.cors.origin_whitelist).
+
+So, mind that the CKAN instance which this plugin is used with needs to allow all origins or whitelist the domain where the wpckan is installed.
 
 # Installation
 
